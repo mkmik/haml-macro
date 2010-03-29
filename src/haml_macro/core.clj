@@ -38,7 +38,11 @@
 (defn text [l] (>>== (many anyChar) #(apply str %)))
 (defn textnl [l] (>>== (text l) #(apply str % "\n")))
 
-(defn statement [l] (delay (either (tag l) (textnl l))))
+(def expression (let-bind [_ (string "=")
+						   code (many1 anyChar)]
+						  (result (read (java.io.PushbackReader. (java.io.StringReader. (apply str code)))))))
+
+(defn statement [l] (delay (either expression (tag l) (textnl l))))
 
 (def tagPrefix (one-of "%#."))
 (def tagChar (either letter digit (one-of "-_") tagPrefix))
@@ -81,5 +85,6 @@
 (defn haml-file [file]
   (haml-str (slurp file)))
 
-(defn haml-file-html [file]
-  (apply str (map compojure/html (haml-file file))))
+(defn eval-haml-file [file]
+  (eval (apply list compojure/html (haml-file file))))
+
