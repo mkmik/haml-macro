@@ -1,3 +1,10 @@
+INTRODUCTION:
+
+This is a Haml implementation for clojure. Currently the main target is the compojure framework.
+
+Wherever haml expects ruby expressions, here you can use clojure expressions. In some cases ruby compatibility is maintained as much as possible,
+especially to enable cut&paste of existing Haml templates from/to the ruby world.
+
 USAGE:
 
     (ns example)

@@ -33,6 +33,8 @@
 (def newlinep (one-of "\n"))
 (def sspace (one-of " "))
 
+; TODO: fix this: accept colons
+(def xmlTagName baseIdentifier)
 
 ;; parser
 
@@ -61,9 +63,34 @@
 					   (let [autoTag (if (not= \% prefix) "div")]
 						 (result (keyword (apply str autoTag (if (not= \% prefix) prefix) rest))))))
 
-(defn make-compojure-tag [t inline body]
-  (apply vector (filter not-nil? (apply vector t inline body))))
+(defn make-compojure-tag [t attrs inline body]
+  (apply vector (filter not-nil? (apply vector t attrs inline body))))
 
+
+
+(defn quotedString [ch]
+	(between (is-char ch) (is-char ch) (many (not-char ch))))
+
+(def hamlStringLiteral
+     (stringify (lexeme (either (quotedString \') (quotedString \")))))
+
+(def rubyAttrPair (let-bind [name (lexeme (either hamlStringLiteral (>> (string ":") baseIdentifier)))
+						 _    (lexeme (string "=>"))
+						 value hamlStringLiteral]
+						(result {(keyword name) value})))
+
+(def rubyAttrList (>>== (braces (sepBy rubyAttrPair comma))
+					#(apply merge %)))
+
+(def htmlAttrPair (let-bind [name (lexeme xmlTagName)
+						 _    (lexeme (string "="))
+						 value hamlStringLiteral]
+						(result {(keyword name) value})))
+
+(def htmlAttrList (>>== (parens (sepBy htmlAttrPair sspace))
+					#(apply merge %)))
+
+(def attrList (either rubyAttrList htmlAttrList))
 
 (def inlineTag (let-bind [p (not-one-of " \n")
 						  rest (text 0)]
@@ -75,10 +102,11 @@
 
 (defn tag [l]
   (let-bind [t      tagName
+			 attrs  (optional attrList)
 			 _      (many sspace)
 			 inline (optional inlineTag)
 			 rest   (optional (tagBody l))]
-			(result (make-compojure-tag t inline rest))))
+			(result (make-compojure-tag t attrs inline rest))))
 
 
 (defn statements [l] (followedBy (sepBy1 (statement l) newlinep) (optional newlinep)))
