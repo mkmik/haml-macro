@@ -6,6 +6,18 @@
 
 (defn not-nil? [p] (not (nil? p)))
 
+(defn >>= [pa pb]
+  (let-bind [a pa
+			 b pb]
+			(result [a b])))
+
+(defn not-one-of [target-strn]
+  (let [str-chars (into #{} target-strn)]
+    (satisfy #(not (contains? str-chars %)))))
+
+
+(defn skipMany [p] (>>== (many p) (fn [x] nil)))
+
 (def newlinep (one-of "\n"))
 (def sspace (one-of " "))
 
@@ -24,7 +36,7 @@
 (def anyChar (not-char \newline))
 
 (defn text [l] (>>== (many anyChar) #(apply str %)))
-(defn textnl [l] (>>== (text l) #(str % "\n")))
+(defn textnl [l] (>>== (text l) #(apply str % "\n")))
 
 (defn statement [l] (delay (either (tag l) (textnl l))))
 
@@ -38,12 +50,22 @@
 (defn make-compojure-tag [t inline body]
   (apply vector (filter not-nil? (apply vector t inline body))))
 
-(defn tag [l] 
+
+;(def inlineTag (>> (many1 sspace) (text 0)))
+(def inlineTag (let-bind [p (not-one-of " \n")
+						  rest (text 0)]
+						 (result (apply str p rest))))
+
+(defn tagBody [l]
   (let [nl (+ 2 l)]
-	(let-bind [t      tagName
-			   inline (optional (>> sspace (text 0)))
-			   body   (optional (many1 (indented nl (statement nl))))]
-			  (result (make-compojure-tag t inline body)))))
+	(many1 (indented nl (statement nl)))))
+
+(defn tag [l]
+  (let-bind [t      tagName
+			 _      (many sspace)
+			 inline (optional inlineTag)
+			 rest   (optional (tagBody l))]
+			(result (make-compojure-tag t inline rest))))
 
 
 (defn statements [l] (followedBy (sepBy1 (statement l) newlinep) (optional newlinep)))
