@@ -3,24 +3,21 @@
 
 (def newlinep (one-of "\n"))
 
-(def anyChar (not-char \newline))
-
 (defn prefixed [ch p]
   (>> (is-char ch) p))
 
-(def tagName (prefixed \% baseIdentifier))
-(def idName (prefixed \# baseIdentifier))
-(def className (prefixed \. baseIdentifier))
+(def anyChar (not-char \newline))
 
-(def tag (let-bind [t (optional tagName)
-					i (optional idName)
-					c (many className)
+(def tagPrefix (one-of "%#."))
+(def tagChar (either letter digit (one-of "-_") tagPrefix))
+(def tagName (let-bind [prefix tagPrefix
+						rest   (many1 tagChar)]
+					   (let [autoTag (if (not= \% prefix) "%div")]
+						 (result (keyword (apply str autoTag prefix rest))))))
+
+(def tag (let-bind [t tagName
 					b (optional (>> space text))]
-				   (let [cc (if (empty? c) nil c)
-						 tn (if (nil? t) "div" t)]
-					 (if (every? nil? [t i cc])
-					   fail
-					   (result [:tag tn i c b])))))
+					(result [:tag t (second b)])))
 
 (def text (>>== (many anyChar) #(vector :text (apply str %))))
 
