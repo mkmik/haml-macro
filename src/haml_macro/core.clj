@@ -82,7 +82,7 @@
 (defn haml-str [strn]
   (:value (parse source strn)))
 
-(def *templates-dir* (atom "."))
+(def *templates-dir* (atom "views"))
 
 (defn haml-file [file]
   (haml-str (slurp (str @*templates-dir* "/" file))))
