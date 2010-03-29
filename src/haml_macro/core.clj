@@ -23,7 +23,7 @@
 
 (def anyChar (not-char \newline))
 
-(defn text [l] (>> (repeated l sspace) (>>== (many anyChar) #(apply str %))))
+(defn text [l] (>>== (many anyChar) #(apply str %)))
 (defn textnl [l] (>>== (text l) #(str % "\n")))
 
 (defn statement [l] (delay (either (tag l) (textnl l))))
