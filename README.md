@@ -10,3 +10,6 @@ USAGE:
 see example.haml
 
 
+
+haml is compiled to clojure code, you need to reload your module from REPL to see your changes in HAML.
+
