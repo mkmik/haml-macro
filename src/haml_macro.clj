@@ -3,3 +3,5 @@
 
 (defmacro haml [file]
   (apply list compojure/html (haml-file file)))
+
+(defn set-templates-dir [dir] (reset! *templates-dir* dir))

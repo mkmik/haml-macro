@@ -82,8 +82,13 @@
 (defn haml-str [strn]
   (:value (parse source strn)))
 
+(def *templates-dir* (atom "."))
+
 (defn haml-file [file]
-  (haml-str (slurp file)))
+  (haml-str (slurp (str @*templates-dir* "/" file))))
+
+(defn haml-file-name [file]
+  (str *templates-dir* "/" file))
 
 (defn eval-haml-file [file]
   (eval (apply list compojure/html (haml-file file))))
