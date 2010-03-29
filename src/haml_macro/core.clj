@@ -1,5 +1,6 @@
 (ns haml-macro.core
-  (:use [eu.dnetlib.clojure clarsec monad]))
+  (:use [eu.dnetlib.clojure clarsec monad])
+  (:require compojure))
 
 (declare tag)
 
@@ -22,9 +23,10 @@
 
 (def anyChar (not-char \newline))
 
-(def text (>>== (many anyChar) #(vector :text (apply str %))))
+(defn text [l] (>> (repeated l sspace) (>>== (many anyChar) #(apply str %))))
+(defn textnl [l] (>>== (text l) #(str % "\n")))
 
-(defn statement [l] (delay (either (tag l) text)))
+(defn statement [l] (delay (either (tag l) (textnl l))))
 
 (def tagPrefix (one-of "%#."))
 (def tagChar (either letter digit (one-of "-_") tagPrefix))
@@ -34,13 +36,13 @@
 						 (result (keyword (apply str autoTag (if (not= \% prefix) prefix) rest))))))
 
 (defn make-compojure-tag [t inline body]
-  (apply vector (filter not-nil? (apply vector t (second inline) body))))
+  (apply vector (filter not-nil? (apply vector t inline body))))
 
 (defn tag [l] 
   (let [nl (+ 2 l)]
 	(let-bind [t      tagName
-			   inline (optional (>> sspace text))
-			   body   (optional (many1 (indented nl (tag nl))))]
+			   inline (optional (>> sspace (text 0)))
+			   body   (optional (many1 (indented nl (statement nl))))]
 			  (result (make-compojure-tag t inline body)))))
 
 
@@ -56,3 +58,6 @@
 
 (defn haml-file [file]
   (haml-str (slurp file)))
+
+(defn haml-file-html [file]
+  (apply str (map compojure/html (haml-file file))))
