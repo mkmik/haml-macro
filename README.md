@@ -5,7 +5,7 @@ USAGE:
         (:use haml-macro))
 
     (defroutes greeter
-      (GET "/hello/:first/:last" (haml "example.haml")))
+      (GET "/hello/:first/:last" (haml "example")))
 
 see views/example.haml
 
