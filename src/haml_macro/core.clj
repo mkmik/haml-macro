@@ -4,7 +4,11 @@
 
 (declare tag)
 
+;; general helpers
+
 (defn not-nil? [p] (not (nil? p)))
+
+;; parser helpers (should be in clarsec)
 
 (defn >>= [pa pb]
   (let-bind [a pa
@@ -18,22 +22,28 @@
 
 (defn skipMany [p] (>>== (many p) (fn [x] nil)))
 
-(def newlinep (one-of "\n"))
-(def sspace (one-of " "))
-
-(defn prefixed [ch p]
-  (>> (is-char ch) p))
-
 (defn repeated [n p]
   (if (<= n 0)
 	(result [])
 	(m-sequence (repeat n p))))
 
-(defn indented [level p] (let-bind [_ newlinep
-									_ (repeated level sspace)]
-								   p))
+
+;; common tokens
+
+(def newlinep (one-of "\n"))
+(def sspace (one-of " "))
+
+
+;; parser
 
 (def anyChar (not-char \newline))
+
+(def skipEmptyLine (followedBy (many sspace) newlinep))
+
+(defn indented [level p] (let-bind [_ newlinep
+									_ (many skipEmptyLine)
+									_ (repeated level sspace)]
+								   p))
 
 (defn text [l] (>>== (many anyChar) #(apply str %)))
 (defn textnl [l] (>>== (text l) #(apply str % "\n")))
@@ -55,7 +65,6 @@
   (apply vector (filter not-nil? (apply vector t inline body))))
 
 
-;(def inlineTag (>> (many1 sspace) (text 0)))
 (def inlineTag (let-bind [p (not-one-of " \n")
 						  rest (text 0)]
 						 (result (apply str p rest))))
@@ -78,6 +87,10 @@
 
 (def source
      (followedBy body (lexeme eof)))
+
+;;; parser end
+
+;;; generators
 
 (defn haml-str [strn]
   (:value (parse source strn)))
