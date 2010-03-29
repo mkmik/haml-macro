@@ -84,11 +84,26 @@
 
 (def *templates-dir* (atom "views"))
 
+(defn haml-file-name [file]
+  (str @*templates-dir* "/" file))
+
 (defn haml-file [file]
   (haml-str (slurp (str @*templates-dir* "/" file))))
 
-(defn haml-file-name [file]
-  (str *templates-dir* "/" file))
+(defn layout-path []
+  (str "layouts/" "application.haml"))
+
+(defn build-layout [l]
+  (list 'fn ['yield] (apply list 'list l)))
+
+(defn load-layout []
+  (let [lp (layout-path)]
+	(build-layout (if (.exists (java.io.File. (str @*templates-dir* "/" lp)))
+					(haml-file lp)
+					'yield))))
+
+(defn haml-file-with-layout [file]
+  ((eval (load-layout)) (haml-file file)))
 
 (defn eval-haml-file [file]
   (eval (apply list compojure/html (haml-file file))))
