@@ -1,6 +1,5 @@
 (ns haml-macro.core
-  (:use [eu.dnetlib.clojure clarsec monad])
-  (:require compojure))
+  (:use [eu.dnetlib.clojure clarsec monad]))
 
 (declare tag)
 
@@ -141,11 +140,9 @@
   (let [lp (layout-path)]
 	(build-layout (if (.exists (java.io.File. (str @*templates-dir* "/" lp ".haml")))
 					(haml-file lp)
-					'yield))))
+					'(yield)))))
 
 (defn haml-file-with-layout [file]
   ((eval (load-layout)) (apply list 'list (haml-file file))))
 
-(defn eval-haml-file [file]
-  (eval (apply list compojure/html (haml-file file))))
 
