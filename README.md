@@ -11,6 +11,16 @@ USAGE:
         (:use compojure)
         (:use haml-macro))
 
+    (defroutes main-routes
+      (GET "/hello/:first/:last" []
+         (haml "index"))
+
+    (def app
+      (wrap-reload #'main-routes '(authfile.gui)))
+
+    (run-jetty app {:port 4000}))
+
+
     (defroutes greeter
       (GET "/hello/:first/:last" (haml "example")))
 

@@ -1,7 +1,7 @@
 (ns haml-macro.core
   (:use [eu.dnetlib.clojure clarsec monad]))
 
-(declare tag)
+(declare tag clojureStatement)
 
 ;; general helpers
 
@@ -53,7 +53,7 @@
 						   code (many1 anyChar)]
 						  (result (read (java.io.PushbackReader. (java.io.StringReader. (apply str code)))))))
 
-(defn statement [l] (delay (either expression (tag l) (textnl l))))
+(defn statement [l] (delay (either expression (clojureStatement l) (tag l) (textnl l))))
 
 (def tagPrefix (one-of "%#."))
 (def tagChar (either letter digit (one-of "-_") tagPrefix))
@@ -106,6 +106,13 @@
 			 inline (optional inlineTag)
 			 rest   (optional (tagBody l))]
 			(result (make-compojure-tag t attrs inline rest))))
+
+(defn clojureStatement [l]
+  (let-bind [_      (string "-")
+			 _      (many sspace)
+			 code (many1 anyChar)
+			 rest   (optional (tagBody l))]
+			(result (concat (read (java.io.PushbackReader. (java.io.StringReader. (apply str code)))) rest))))
 
 
 (defn statements [l] (followedBy (sepBy1 (statement l) newlinep) (optional newlinep)))
