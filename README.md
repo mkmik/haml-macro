@@ -38,3 +38,8 @@ It should behave like the normal ruby haml layouts, using "yield":
     %html
         %body
             = yield
+
+
+DISCLAIMER:
+
+the whole thing it's slightly hackish, but I use it for real work so I will normally keep fixing things until they work :-)
