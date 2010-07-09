@@ -66,9 +66,18 @@
   (apply vector (filter not-nil? (apply vector t attrs inline body))))
 
 
+(defn not-char-of [s]
+  (satisfy #(not (contains? s %))))
 
 (defn quotedString [ch]
-	(between (is-char ch) (is-char ch) (many (not-char ch))))
+  (let [quoteSeparator (is-char ch)
+		stringBody (many1 (not-char-of #{ch \#}))
+		expressionBody (let-bind [_ (string "#{")
+								  expr (many1 (not-char \}))
+								  _ (string "}")]
+								 (result expr))
+		expansionBody (many (either stringBody expressionBody))]
+	(>>== (between quoteSeparator quoteSeparator expansionBody) #(apply concat %))))
 
 (def hamlStringLiteral
      (stringify (lexeme (either (quotedString \') (quotedString \")))))
