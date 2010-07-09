@@ -71,16 +71,17 @@
 
 (defn quotedString [ch]
   (let [quoteSeparator (is-char ch)
-		stringBody (many1 (not-char-of #{ch \#}))
+		stringBody (stringify (many1 (not-char-of #{ch \#})))
 		expressionBody (let-bind [_ (string "#{")
-								  expr (many1 (not-char \}))
+								  expr (stringify (many1 (not-char \})))
 								  _ (string "}")]
-								 (result expr))
-		expansionBody (many (either stringBody expressionBody))]
-	(>>== (between quoteSeparator quoteSeparator expansionBody) #(apply concat %))))
+								 (result (read-string expr)))
+		expansionBody (many (either stringBody expressionBody))
+		optimize (fn [exp] (if (== 2 (count exp)) (second exp) exp))]
+	(>>== (between quoteSeparator quoteSeparator expansionBody) #(optimize (apply list 'str %)))))
 
 (def hamlStringLiteral
-     (stringify (lexeme (either (quotedString \') (quotedString \")))))
+     (lexeme (either (quotedString \') (quotedString \"))))
 
 (def rubyAttrPair (let-bind [name (lexeme (either hamlStringLiteral (>> (string ":") baseIdentifier)))
 						 _    (lexeme (string "=>"))
