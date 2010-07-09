@@ -87,7 +87,7 @@
 
 (defn quotedString [ch]
   (let [quoteSeparator (is-char ch)
-		stringBody (stringify (many1 (either (not-char-of #{\' \#}) (notFollowedBy (string "#") (string "{")))))
+		stringBody (stringify (many1 (either (not-char-of #{ch \# \newline}) (notFollowedBy (string "#") (string "{")))))
 		expressionBody (let-bind [_ (string "#{")
 								  expr (stringify (many1 (not-char \})))
 								  _ (string "}")]

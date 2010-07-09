@@ -1,4 +1,4 @@
-(defproject haml-macro "1.0.0-SNAPSHOT"
+(defproject haml-macro "1.0.1-SNAPSHOT"
   :description "macro which takes haml and generate hiccup compatible html rendering"
   :url "http://github.com/mmikulicic/haml-macro"
   :dependencies [[org.clojure/clojure "1.1.0"]
