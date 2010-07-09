@@ -69,9 +69,25 @@
 (defn not-char-of [s]
   (satisfy #(not (contains? s %))))
 
+;; hack, probably incorrect but allow me to handle the '#{}' thing
+(defn notFollowedBy [p trailing]
+  (make-monad 'Parser
+			  (fn p-try-parse [strn]
+				(let [res (parse p strn)]
+				  (if (consumed? res)
+					(let [trail (parse trailing (:rest res))]
+					  (if (consumed? trail)
+						(failed)
+						res
+						)
+					  )
+					(failed))
+				  ))))
+
+
 (defn quotedString [ch]
   (let [quoteSeparator (is-char ch)
-		stringBody (stringify (many1 (not-char-of #{ch \#})))
+		stringBody (stringify (many1 (either (not-char-of #{\' \#}) (notFollowedBy (string "#") (string "{")))))
 		expressionBody (let-bind [_ (string "#{")
 								  expr (stringify (many1 (not-char \})))
 								  _ (string "}")]
