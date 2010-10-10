@@ -7,6 +7,12 @@ especially to enable cut&paste of existing Haml templates from/to the ruby world
 
 USAGE:
 
+Leiningen:
+
+    [haml-macro "1.0.1-SNAPSHOT"]
+
+example:
+
     (ns example)
         (:use compojure)
         (:use haml-macro))
