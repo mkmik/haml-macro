@@ -166,16 +166,20 @@
 (defn layout-path []
   (str "layouts/" "application"))
 
+(def *layout-path*
+	 "layouts/application")
+
 (defn build-layout [l]
-  (list 'fn ['yield] (apply list 'list l)))
+  ;(list 'fn ['yield] (apply list 'list l)))
+  (apply list 'list l))
 
 (defn load-layout []
-  (let [lp (layout-path)]
+  (let [lp *layout-path*]
 	(build-layout (if (.exists (java.io.File. (str @*templates-dir* "/" lp ".haml")))
 					(haml-file lp)
 					'(yield)))))
 
 (defn haml-file-with-layout [file]
-  ((eval (load-layout)) (apply list 'list (haml-file file))))
-
-
+  (let [loaded-layout (load-layout)
+		body (apply list 'list (haml-file file))]
+	[(list 'let ['yield body] loaded-layout)]))
