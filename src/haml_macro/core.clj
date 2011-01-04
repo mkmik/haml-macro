@@ -3,36 +3,38 @@
 
 (declare tag clojureStatement)
 
-;; general helpers
+                                        ; general helpers
 
-(defn not-nil? [p] (not (nil? p)))
+(defn not-nil? [p]
+  (not (nil? p)))
 
-;; parser helpers (should be in clarsec)
+                                        ; parser helpers (should be in clarsec)
 
 (defn >>= [pa pb]
   (let-bind [a pa
-			 b pb]
-			(result [a b])))
+             b pb]
+            (result [a b])))
 
 (defn not-one-of [target-strn]
   (let [str-chars (into #{} target-strn)]
     (satisfy #(not (contains? str-chars %)))))
 
 
-(defn skipMany [p] (>>== (many p) (fn [x] nil)))
+(defn skipMany [p]
+  (>>== (many p) (fn [x] nil)))
 
 (defn repeated [n p]
   (if (<= n 0)
-	(result [])
-	(m-sequence (repeat n p))))
+    (result [])
+    (m-sequence (repeat n p))))
 
 
-;; common tokens
+                                        ; common tokens
 
 (def newlinep (one-of "\n"))
 (def sspace (one-of " "))
 
-; TODO: fix this: accept colons
+;; TODO: fix this: accept colons
 (def xmlTagName baseIdentifier)
 
 ;; parser
@@ -41,26 +43,33 @@
 
 (def skipEmptyLine (followedBy (many sspace) newlinep))
 
-(defn indented [level p] (let-bind [_ newlinep
-									_ (many skipEmptyLine)
-									_ (repeated level sspace)]
-								   p))
+(defn indented [level p]
+  (let-bind [_ newlinep
+             _ (many skipEmptyLine)
+             _ (repeated level sspace)]
+            p))
 
-(defn text [l] (>>== (many anyChar) #(apply str %)))
-(defn textnl [l] (>>== (text l) #(apply str % "\n")))
+(defn text [l]
+  (>>== (many anyChar) #(apply str %)))
 
-(def expression (let-bind [_ (string "=")
-						   code (many1 anyChar)]
-						  (result (read (java.io.PushbackReader. (java.io.StringReader. (apply str code)))))))
+(defn textnl [l]
+  (>>== (text l) #(apply str % "\n")))
+
+(def expression
+     (let-bind [_ (string "=")
+                code (many1 anyChar)]
+               (result (read (java.io.PushbackReader. (java.io.StringReader. (apply str code)))))))
 
 (defn statement [l] (delay (either expression (clojureStatement l) (tag l) (textnl l))))
 
 (def tagPrefix (one-of "%#."))
+
 (def tagChar (either letter digit (one-of "-_") tagPrefix))
+
 (def tagName (let-bind [prefix tagPrefix
-						rest   (many1 tagChar)]
-					   (let [autoTag (if (not= \% prefix) "div")]
-						 (result (keyword (apply str autoTag (if (not= \% prefix) prefix) rest))))))
+                        rest   (many1 tagChar)]
+                       (let [autoTag (if (not= \% prefix) "div")]
+                         (result (keyword (apply str autoTag (if (not= \% prefix) prefix) rest))))))
 
 (defn make-compojure-tag [t attrs inline body]
   (apply vector (filter not-nil? (apply vector t attrs inline body))))
@@ -72,73 +81,75 @@
 ;; hack, probably incorrect but allow me to handle the '#{}' thing
 (defn notFollowedBy [p trailing]
   (make-monad 'Parser
-			  (fn p-try-parse [strn]
-				(let [res (parse p strn)]
-				  (if (consumed? res)
-					(let [trail (parse trailing (:rest res))]
-					  (if (consumed? trail)
-						(failed)
-						res
-						)
-					  )
-					(failed))
-				  ))))
+              (fn p-try-parse [strn]
+                (let [res (parse p strn)]
+                  (if (consumed? res)
+                    (let [trail (parse trailing (:rest res))]
+                      (if (consumed? trail)
+                        (failed)
+                        res))
+                    (failed))))))
 
 
 (defn quotedString [ch]
   (let [quoteSeparator (is-char ch)
-		stringBody (stringify (many1 (either (not-char-of #{ch \# \newline}) (notFollowedBy (string "#") (string "{")))))
-		expressionBody (let-bind [_ (string "#{")
-								  expr (stringify (many1 (not-char \})))
-								  _ (string "}")]
-								 (result (read-string expr)))
-		expansionBody (many (either stringBody expressionBody))
-		optimize (fn [exp] (if (== 2 (count exp)) (second exp) exp))]
-	(>>== (between quoteSeparator quoteSeparator expansionBody) #(optimize (apply list 'str %)))))
+        stringBody (stringify (many1 (either (not-char-of #{ch \# \newline}) (notFollowedBy (string "#") (string "{")))))
+        expressionBody (let-bind [_ (string "#{")
+                                  expr (stringify (many1 (not-char \})))
+                                  _ (string "}")]
+                                 (result (read-string expr)))
+        expansionBody (many (either stringBody expressionBody))
+        optimize (fn [exp] (if (== 2 (count exp)) (second exp) exp))]
+    (>>== (between quoteSeparator quoteSeparator expansionBody) #(optimize (apply list 'str %)))))
 
 (def hamlStringLiteral
      (lexeme (either (quotedString \') (quotedString \"))))
 
-(def rubyAttrPair (let-bind [name (lexeme (either hamlStringLiteral (>> (string ":") baseIdentifier)))
-						 _    (lexeme (string "=>"))
-						 value hamlStringLiteral]
-						(result {(keyword name) value})))
+(def rubyAttrPair
+     (let-bind [name (lexeme (either hamlStringLiteral (>> (string ":") baseIdentifier)))
+                _    (lexeme (string "=>"))
+                value hamlStringLiteral]
+               (result {(keyword name) value})))
 
-(def rubyAttrList (>>== (braces (sepBy rubyAttrPair comma))
-					#(apply merge %)))
+(def rubyAttrList
+     (>>== (braces (sepBy rubyAttrPair comma))
+           #(apply merge %)))
 
-(def htmlAttrPair (let-bind [name (lexeme xmlTagName)
-						 _    (lexeme (string "="))
-						 value hamlStringLiteral]
-						(result {(keyword name) value})))
+(def htmlAttrPair
+     (let-bind [name (lexeme xmlTagName)
+                _    (lexeme (string "="))
+                value hamlStringLiteral]
+               (result {(keyword name) value})))
 
-(def htmlAttrList (>>== (parens (sepBy htmlAttrPair sspace))
-					#(apply merge %)))
+(def htmlAttrList
+     (>>== (parens (sepBy htmlAttrPair sspace))
+           #(apply merge %)))
 
 (def attrList (either rubyAttrList htmlAttrList))
 
-(def inlineTag (let-bind [p (not-one-of " \n")
-						  rest (text 0)]
-						 (result (apply str p rest))))
+(def inlineTag
+     (let-bind [p (not-one-of " \n")
+                rest (text 0)]
+               (result (apply str p rest))))
 
 (defn tagBody [l]
   (let [nl (+ 2 l)]
-	(many1 (indented nl (statement nl)))))
+    (many1 (indented nl (statement nl)))))
 
 (defn tag [l]
   (let-bind [t      tagName
-			 attrs  (optional attrList)
-			 _      (many sspace)
-			 inline (optional inlineTag)
-			 rest   (optional (tagBody l))]
-			(result (make-compojure-tag t attrs inline rest))))
+             attrs  (optional attrList)
+             _      (many sspace)
+             inline (optional inlineTag)
+             rest   (optional (tagBody l))]
+            (result (make-compojure-tag t attrs inline rest))))
 
 (defn clojureStatement [l]
   (let-bind [_      (string "-")
-			 _      (many sspace)
-			 code (many1 anyChar)
-			 rest   (optional (tagBody l))]
-			(result (concat (read (java.io.PushbackReader. (java.io.StringReader. (apply str code)))) rest))))
+             _      (many sspace)
+             code (many1 anyChar)
+             rest   (optional (tagBody l))]
+            (result (concat (read (java.io.PushbackReader. (java.io.StringReader. (apply str code)))) rest))))
 
 
 (defn statements [l] (followedBy (sepBy1 (statement l) newlinep) (optional newlinep)))
@@ -147,10 +158,9 @@
 
 (def source
      (followedBy body (lexeme eof)))
+;; parser end
 
-;;; parser end
-
-;;; generators
+                                        ; generators
 
 (defn haml-str [strn]
   (:value (parse source strn)))
@@ -167,19 +177,20 @@
   (str "layouts/" "application"))
 
 (def *layout-path*
-	 "layouts/application")
+     "layouts/application")
 
 (defn build-layout [l]
-  ;(list 'fn ['yield] (apply list 'list l)))
+  ;; (list 'fn ['yield] (apply list 'list l)))
   (apply list 'list l))
 
 (defn load-layout []
   (let [lp *layout-path*]
-	(build-layout (if (.exists (java.io.File. (str @*templates-dir* "/" lp ".haml")))
-					(haml-file lp)
-					'(yield)))))
+    (build-layout
+     (if (.exists (java.io.File. (str @*templates-dir* "/" lp ".haml")))
+       (haml-file lp)
+       '(yield)))))
 
 (defn haml-file-with-layout [file]
   (let [loaded-layout (load-layout)
-		body (apply list 'list (haml-file file))]
-	[(list 'let ['yield body] loaded-layout)]))
+        body (apply list 'list (haml-file file))]
+    [(list 'let ['yield body] loaded-layout)]))
