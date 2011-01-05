@@ -1,14 +1,14 @@
 (ns haml-macro.core
   (:use [eu.dnetlib.clojure clarsec monad]))
 
-(declare tag clojureStatement)
+(declare tag clojure-statement)
 
-                                        ; general helpers
+                                        ; General Helpers
 
 (defn not-nil? [p]
   (not (nil? p)))
 
-                                        ; parser helpers (should be in clarsec)
+                                        ; Parser Helpers (*should be in clarsec*)
 
 (defn >>= [pa pb]
   (let-bind [a pa
@@ -20,7 +20,7 @@
     (satisfy #(not (contains? str-chars %)))))
 
 
-(defn skipMany [p]
+(defn skip-many [p]
   (>>== (many p) (fn [x] nil)))
 
 (defn repeated [n p]
@@ -29,45 +29,44 @@
     (m-sequence (repeat n p))))
 
 
-                                        ; common tokens
+                                        ; Common Tokens
+(def new-line (one-of "\n"))
+(def single-space (one-of " "))
 
-(def newlinep (one-of "\n"))
-(def sspace (one-of " "))
+;; TODO: Fix this: accept colons
+(def xml-tag-name baseIdentifier)
 
-;; TODO: fix this: accept colons
-(def xmlTagName baseIdentifier)
 
-;; parser
+                                        ; Parser
+(def any-char (not-char \newline))
 
-(def anyChar (not-char \newline))
-
-(def skipEmptyLine (followedBy (many sspace) newlinep))
+(def skip-empty-line (followedBy (many single-space) new-line))
 
 (defn indented [level p]
-  (let-bind [_ newlinep
-             _ (many skipEmptyLine)
-             _ (repeated level sspace)]
+  (let-bind [_ new-line
+             _ (many skip-empty-line)
+             _ (repeated level single-space)]
             p))
 
 (defn text [l]
-  (>>== (many anyChar) #(apply str %)))
+  (>>== (many any-char) #(apply str %)))
 
-(defn textnl [l]
+(defn text-newline [l]
   (>>== (text l) #(apply str % "\n")))
 
 (def expression
      (let-bind [_ (string "=")
-                code (many1 anyChar)]
+                code (many1 any-char)]
                (result (read (java.io.PushbackReader. (java.io.StringReader. (apply str code)))))))
 
-(defn statement [l] (delay (either expression (clojureStatement l) (tag l) (textnl l))))
+(defn statement [l] (delay (either expression (clojure-statement l) (tag l) (text-newline l))))
 
-(def tagPrefix (one-of "%#."))
+(def tag-prefix (one-of "%#."))
 
-(def tagChar (either letter digit (one-of "-_") tagPrefix))
+(def tag-char (either letter digit (one-of "-_") tag-prefix))
 
-(def tagName (let-bind [prefix tagPrefix
-                        rest   (many1 tagChar)]
+(def tag-name (let-bind [prefix tag-prefix
+                        rest   (many1 tag-char)]
                        (let [autoTag (if (not= \% prefix) "div")]
                          (result (keyword (apply str autoTag (if (not= \% prefix) prefix) rest))))))
 
@@ -79,7 +78,7 @@
   (satisfy #(not (contains? s %))))
 
 ;; hack, probably incorrect but allow me to handle the '#{}' thing
-(defn notFollowedBy [p trailing]
+(defn not-followed-by [p trailing]
   (make-monad 'Parser
               (fn p-try-parse [strn]
                 (let [res (parse p strn)]
@@ -91,9 +90,9 @@
                     (failed))))))
 
 
-(defn quotedString [ch]
+(defn quoted-string [ch]
   (let [quoteSeparator (is-char ch)
-        stringBody (stringify (many1 (either (not-char-of #{ch \# \newline}) (notFollowedBy (string "#") (string "{")))))
+        stringBody (stringify (many1 (either (not-char-of #{ch \# \newline}) (not-followed-by (string "#") (string "{")))))
         expressionBody (let-bind [_ (string "#{")
                                   expr (stringify (many1 (not-char \})))
                                   _ (string "}")]
@@ -102,66 +101,66 @@
         optimize (fn [exp] (if (== 2 (count exp)) (second exp) exp))]
     (>>== (between quoteSeparator quoteSeparator expansionBody) #(optimize (apply list 'str %)))))
 
-(def hamlStringLiteral
-     (lexeme (either (quotedString \') (quotedString \"))))
+(def haml-string-literal
+     (lexeme (either (quoted-string \') (quoted-string \"))))
 
-(def rubyAttrPair
-     (let-bind [name (lexeme (either hamlStringLiteral (>> (string ":") baseIdentifier)))
+(def ruby-attr-pair
+     (let-bind [name (lexeme (either haml-string-literal (>> (string ":") baseIdentifier)))
                 _    (lexeme (string "=>"))
-                value hamlStringLiteral]
+                value haml-string-literal]
                (result {(keyword name) value})))
 
-(def rubyAttrList
-     (>>== (braces (sepBy rubyAttrPair comma))
+(def ruby-attr-list
+     (>>== (braces (sepBy ruby-attr-pair comma))
            #(apply merge %)))
 
-(def htmlAttrPair
-     (let-bind [name (lexeme xmlTagName)
+(def html-attr-pair
+     (let-bind [name (lexeme xml-tag-name)
                 _    (lexeme (string "="))
-                value hamlStringLiteral]
+                value haml-string-literal]
                (result {(keyword name) value})))
 
-(def htmlAttrList
-     (>>== (parens (sepBy htmlAttrPair sspace))
+(def html-attr-list
+     (>>== (parens (sepBy html-attr-pair single-space))
            #(apply merge %)))
 
-(def attrList (either rubyAttrList htmlAttrList))
+(def attr-list (either ruby-attr-list html-attr-list))
 
-(def inlineTag
+(def inline-tag
      (let-bind [p (not-one-of " \n")
                 rest (text 0)]
                (result (apply str p rest))))
 
-(defn tagBody [l]
+(defn tag-body [l]
   (let [nl (+ 2 l)]
     (many1 (indented nl (statement nl)))))
 
 (defn tag [l]
-  (let-bind [t      tagName
-             attrs  (optional attrList)
-             _      (many sspace)
-             inline (optional inlineTag)
-             rest   (optional (tagBody l))]
+  (let-bind [t      tag-name
+             attrs  (optional attr-list)
+             _      (many single-space)
+             inline (optional inline-tag)
+             rest   (optional (tag-body l))]
             (result (make-compojure-tag t attrs inline rest))))
 
-(defn clojureStatement [l]
+(defn clojure-statement [l]
   (let-bind [_      (string "-")
-             _      (many sspace)
-             code (many1 anyChar)
-             rest   (optional (tagBody l))]
+             _      (many single-space)
+             code (many1 any-char)
+             rest   (optional (tag-body l))]
             (result (concat (read (java.io.PushbackReader. (java.io.StringReader. (apply str code)))) rest))))
 
 
-(defn statements [l] (followedBy (sepBy1 (statement l) newlinep) (optional newlinep)))
+(defn statements [l] (followedBy (sepBy1 (statement l) new-line) (optional new-line)))
 
 (def body (statements 0))
 
 (def source
      (followedBy body (lexeme eof)))
-;; parser end
+                                        ; Parser End
 
-                                        ; generators
 
+                                        ; Generators
 (defn haml-str [strn]
   (:value (parse source strn)))
 
